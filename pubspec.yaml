@@ -38,6 +38,7 @@ dependencies:
   dio: ^5.1.0 # Para hacer las peticiones HTTP
   injectable: ^2.1.0 # Para la inyección de dependencias
   get_it: ^7.6.0 # Para gestionar los servicios inyectados
+  http: ^1.2.2
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
