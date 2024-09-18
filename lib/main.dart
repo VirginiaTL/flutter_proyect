@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:go_router/go_router.dart';
 import 'dart:convert';
 
 void main() {
@@ -70,7 +71,7 @@ class _ProductsPageState extends State<ProductsPage> {
   bool isLoading = true;
   bool isFetchingMore = false;
   int currentPage = 0;
-  final int productsPerPage = 5; // Número de productos por "página"
+  final int productsPerPage = 10; // Número de productos por "página"
   ScrollController _scrollController = ScrollController();
 
   @override
@@ -198,13 +199,61 @@ class _ProductsPageState extends State<ProductsPage> {
   }
 }
 
-class CategoriesPage extends StatelessWidget {
-  final List<String> categories = [];
+class CategoriesPage extends StatefulWidget {
+  @override
+  _CategoriesPageState createState() => _CategoriesPageState();
+}
+
+class _CategoriesPageState extends State<CategoriesPage> {
+  List<String> categories = [];
   bool isLoading = true;
   bool hasError = false;
 
   @override
+  void initState() {
+    super.initState();
+    fetchCategories();
+  }
+
+  Future<void> fetchCategories() async {
+    try {
+      final response = await http
+          .get(Uri.parse('https://fakestoreapi.com/products/categories'));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          categories = List<String>.from(
+              data); // Convertir la respuesta a una lista de Strings
+          isLoading = false;
+          hasError = false;
+        });
+      } else {
+        throw Exception('Error al cargar categorías');
+      }
+    } catch (error) {
+      setState(() {
+        isLoading = false;
+        hasError = true;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Center(child: CircularProgressIndicator());
+    }
+
+    if (hasError) {
+      return Center(child: Text('Error al cargar categorías'));
+    }
+
+    String capitalize(String text) {
+      if (text.isEmpty) return text;
+      return text[0].toUpperCase() + text.substring(1);
+    }
+
     return GridView.builder(
       padding: EdgeInsets.all(16),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -216,7 +265,7 @@ class CategoriesPage extends StatelessWidget {
       itemBuilder: (context, index) {
         return Card(
           child: Center(
-            child: Text(categories[index]),
+            child: Text(capitalize(categories[index])),
           ),
         );
       },
