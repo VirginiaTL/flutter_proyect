@@ -59,21 +59,25 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-// Página de Productos
 class ProductsPage extends StatefulWidget {
   @override
   _ProductsPageState createState() => _ProductsPageState();
 }
 
 class _ProductsPageState extends State<ProductsPage> {
-  List products = []; // Lista para almacenar los productos
-  List<int> selectedQuantities = []; // Lista de cantidades por producto
-  bool isLoading = true; // Indicador de carga
+  List products = [];
+  List<int> selectedQuantities = [];
+  bool isLoading = true;
+  bool isFetchingMore = false;
+  int currentPage = 0;
+  final int productsPerPage = 5; // Número de productos por "página"
+  ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    fetchProducts(); // Llamada para obtener productos desde la API
+    fetchProducts();
+    _scrollController.addListener(_onScroll);
   }
 
   Future<void> fetchProducts() async {
@@ -84,24 +88,55 @@ class _ProductsPageState extends State<ProductsPage> {
       final data = json.decode(response.body);
       setState(() {
         products = data; // Asignar productos obtenidos
-        selectedQuantities = List.generate(
-            products.length, (index) => 1); // Iniciar cantidades en 1
-        isLoading = false; // Cambiar estado de carga
+        selectedQuantities = List.generate(products.length, (index) => 1);
+        isLoading = false;
       });
     } else {
       throw Exception('Error al cargar productos');
     }
   }
 
+  void _onScroll() {
+    if (_scrollController.position.pixels ==
+        _scrollController.position.maxScrollExtent) {
+      _fetchMoreProducts();
+    }
+  }
+
+  void _fetchMoreProducts() {
+    if (!isFetchingMore &&
+        (currentPage + 1) * productsPerPage < products.length) {
+      setState(() {
+        isFetchingMore = true;
+      });
+
+      // Simulación de carga adicional de datos
+      Future.delayed(Duration(seconds: 2), () {
+        setState(() {
+          currentPage++;
+          isFetchingMore = false;
+        });
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return isLoading
-        ? Center(
-            child: CircularProgressIndicator()) // Mostrar un indicador de carga
+        ? Center(child: CircularProgressIndicator())
         : ListView.builder(
+            controller: _scrollController,
             padding: EdgeInsets.all(16),
-            itemCount: products.length,
+            itemCount:
+                (currentPage + 1) * productsPerPage + (isFetchingMore ? 1 : 0),
             itemBuilder: (context, index) {
+              if (index >= products.length) {
+                return null;
+              }
+              if (index >= (currentPage + 1) * productsPerPage) {
+                return Center(child: CircularProgressIndicator());
+              }
+
               final product = products[index];
               return Card(
                 child: Padding(
@@ -111,16 +146,14 @@ class _ProductsPageState extends State<ProductsPage> {
                       ListTile(
                         leading: Image.network(
                           product['image'],
-                          width: 50,
-                          height: 50,
-                        ), // Mostrar imagen del producto
-                        title: Text(
-                            product['title']), // Mostrar nombre del producto
+                          width: 100,
+                          height: 100,
+                        ),
+                        title: Text(product['title']),
                       ),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          // Selector de cantidad
                           Row(
                             children: [
                               Text('Cantidad:'),
@@ -141,10 +174,8 @@ class _ProductsPageState extends State<ProductsPage> {
                               ),
                             ],
                           ),
-                          // Botón de añadir al carrito
                           ElevatedButton(
                             onPressed: () {
-                              // Lógica para añadir al carrito
                               print(
                                   'Añadir ${product['title']} al carrito con cantidad ${selectedQuantities[index]}');
                             },
@@ -159,11 +190,18 @@ class _ProductsPageState extends State<ProductsPage> {
             },
           );
   }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 }
 
-// Página de Categorías (puedes mantenerla igual por ahora)
 class CategoriesPage extends StatelessWidget {
-  final List<String> categories = ['Electrónica', 'Ropa', 'Hogar', 'Deportes'];
+  final List<String> categories = [];
+  bool isLoading = true;
+  bool hasError = false;
 
   @override
   Widget build(BuildContext context) {
@@ -186,7 +224,6 @@ class CategoriesPage extends StatelessWidget {
   }
 }
 
-// Página del Carrito
 class CartPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
