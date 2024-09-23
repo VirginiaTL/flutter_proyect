@@ -34,6 +34,7 @@ dependencies:
     sdk: flutter
   go_router: ^6.0.2 # Para la navegación
   mobx: ^2.3.3+2
+  provider: ^6.0.0
   flutter_mobx: ^2.2.1+1
   dio: ^5.1.0 # Para hacer las peticiones HTTP
   injectable: ^2.1.0 # Para la inyección de dependencias

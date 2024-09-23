@@ -1,14 +1,23 @@
 // ignore_for_file: library_private_types_in_public_api
 
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+import 'package:proyecto_flutter/pages/login_page.dart';
 import 'dart:convert';
 
 import 'package:proyecto_flutter/screens/product_detail_page.dart';
+import 'package:proyecto_flutter/stores/product_store.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(
+    Provider(
+      create: (_) => ProductStore()..fetchProducts(),
+      child: MyApp(),
+    ),
+  );
 }
 
 Future<Map<String, dynamic>> fetchProductDetails(String productId) async {
@@ -29,6 +38,10 @@ class MyApp extends StatelessWidget {
 
   final GoRouter _router = GoRouter(
     routes: [
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => LoginPage(),
+      ),
       GoRoute(
         path: '/',
         builder: (context, state) => const MyHomePage(),
@@ -109,11 +122,23 @@ class _MyHomePageState extends State<MyHomePage> {
     const CartPage(),
   ];
 
+  void _logout(BuildContext context) {
+    // Aquí puedes implementar cualquier lógica de cierre de sesión necesaria
+    // Luego redirigir a la página de login
+    GoRouter.of(context).go('/login');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('E-Commerce App'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => _logout(context),
+          ),
+        ],
       ),
       body: _pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
@@ -136,91 +161,40 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-class ProductsPage extends StatefulWidget {
-  const ProductsPage({super.key});
-
-  @override
-  _ProductsPageState createState() => _ProductsPageState();
-}
-
-class _ProductsPageState extends State<ProductsPage> {
-  List products = [];
-  List<int> selectedQuantities = [];
-  bool isLoading = true;
-  bool isFetchingMore = false;
-  int currentPage = 0;
-  final int productsPerPage = 10;
-  // ignore: prefer_final_fields
-  ScrollController _scrollController = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    fetchProducts();
-    _scrollController.addListener(_onScroll);
-  }
-
-  Future<void> fetchProducts() async {
-    final response =
-        await http.get(Uri.parse('https://fakestoreapi.com/products'));
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      setState(() {
-        products = data;
-        selectedQuantities = List.generate(products.length, (index) => 1);
-        isLoading = false;
-      });
-    } else {
-      throw Exception('Error al cargar productos');
-    }
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels ==
-        _scrollController.position.maxScrollExtent) {
-      _fetchMoreProducts();
-    }
-  }
-
-  void _fetchMoreProducts() {
-    if (!isFetchingMore &&
-        (currentPage + 1) * productsPerPage < products.length) {
-      setState(() {
-        isFetchingMore = true;
-      });
-
-      Future.delayed(const Duration(seconds: 2), () {
-        setState(() {
-          currentPage++;
-          isFetchingMore = false;
-        });
-      });
-    }
-  }
+class ProductsPage extends StatelessWidget {
+  const ProductsPage({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return isLoading
-        ? const Center(child: CircularProgressIndicator())
-        : ListView.builder(
-            controller: _scrollController,
+    final productStore = Provider.of<ProductStore>(context);
+
+    return Scaffold(
+      body: Observer(
+        builder: (_) {
+          if (productStore.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          return ListView.builder(
+            controller: productStore.scrollController,
             padding: const EdgeInsets.all(16),
             itemCount:
-                (currentPage + 1) * productsPerPage + (isFetchingMore ? 1 : 0),
+                (productStore.currentPage + 1) * productStore.productsPerPage +
+                    (productStore.isFetchingMore ? 1 : 0),
             itemBuilder: (context, index) {
-              if (index >= products.length) {
-                return null;
+              if (index >= productStore.products.length) {
+                return const Center(child: CircularProgressIndicator());
               }
-              if (index >= (currentPage + 1) * productsPerPage) {
+              if (index >=
+                  (productStore.currentPage + 1) *
+                      productStore.productsPerPage) {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final product = products[index];
+              final product = productStore.products[index];
               return GestureDetector(
                 onTap: () {
-                  final productId = product['id']
-                      .toString(); // Asegúrate de que el ID esté disponible.
+                  final productId = product['id'].toString();
                   GoRouter.of(context).go('/product-details/$productId');
                 },
                 child: Card(
@@ -244,7 +218,7 @@ class _ProductsPageState extends State<ProductsPage> {
                                 const Text('Quantity:'),
                                 const SizedBox(width: 10),
                                 DropdownButton<int>(
-                                  value: selectedQuantities[index],
+                                  value: productStore.selectedQuantities[index],
                                   items: List.generate(10, (i) => i + 1)
                                       .map((e) => DropdownMenuItem<int>(
                                             value: e,
@@ -252,18 +226,15 @@ class _ProductsPageState extends State<ProductsPage> {
                                           ))
                                       .toList(),
                                   onChanged: (value) {
-                                    setState(() {
-                                      selectedQuantities[index] = value!;
-                                    });
+                                    productStore.updateQuantity(index, value!);
                                   },
                                 ),
                               ],
                             ),
                             ElevatedButton(
                               onPressed: () {
-                                // ignore: avoid_print
                                 print(
-                                    'Añadir ${product['title']} al carrito con cantidad ${selectedQuantities[index]}');
+                                    'Añadir ${product['title']} al carrito con cantidad ${productStore.selectedQuantities[index]}');
                               },
                               child: const Text('Add to cart'),
                             ),
@@ -276,8 +247,154 @@ class _ProductsPageState extends State<ProductsPage> {
               );
             },
           );
+        },
+      ),
+    );
   }
 }
+
+// class ProductsPage extends StatefulWidget {
+//   const ProductsPage({super.key});
+
+//   @override
+//   _ProductsPageState createState() => _ProductsPageState();
+// }
+
+// class _ProductsPageState extends State<ProductsPage> {
+//   List products = [];
+//   List<int> selectedQuantities = [];
+//   bool isLoading = true;
+//   bool isFetchingMore = false;
+//   int currentPage = 0;
+//   final int productsPerPage = 10;
+//   // ignore: prefer_final_fields
+//   ScrollController _scrollController = ScrollController();
+
+//   @override
+//   void initState() {
+//     super.initState();
+//     fetchProducts();
+//     _scrollController.addListener(_onScroll);
+//   }
+
+//   Future<void> fetchProducts() async {
+//     final response =
+//         await http.get(Uri.parse('https://fakestoreapi.com/products'));
+
+//     if (response.statusCode == 200) {
+//       final data = json.decode(response.body);
+//       setState(() {
+//         products = data;
+//         selectedQuantities = List.generate(products.length, (index) => 1);
+//         isLoading = false;
+//       });
+//     } else {
+//       throw Exception('Error al cargar productos');
+//     }
+//   }
+
+//   void _onScroll() {
+//     if (_scrollController.position.pixels ==
+//         _scrollController.position.maxScrollExtent) {
+//       _fetchMoreProducts();
+//     }
+//   }
+
+//   void _fetchMoreProducts() {
+//     if (!isFetchingMore &&
+//         (currentPage + 1) * productsPerPage < products.length) {
+//       setState(() {
+//         isFetchingMore = true;
+//       });
+
+//       Future.delayed(const Duration(seconds: 2), () {
+//         setState(() {
+//           currentPage++;
+//           isFetchingMore = false;
+//         });
+//       });
+//     }
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return isLoading
+//         ? const Center(child: CircularProgressIndicator())
+//         : ListView.builder(
+//             controller: _scrollController,
+//             padding: const EdgeInsets.all(16),
+//             itemCount:
+//                 (currentPage + 1) * productsPerPage + (isFetchingMore ? 1 : 0),
+//             itemBuilder: (context, index) {
+//               if (index >= products.length) {
+//                 return null;
+//               }
+//               if (index >= (currentPage + 1) * productsPerPage) {
+//                 return const Center(child: CircularProgressIndicator());
+//               }
+
+//               final product = products[index];
+//               return GestureDetector(
+//                 onTap: () {
+//                   final productId = product['id']
+//                       .toString(); // Asegúrate de que el ID esté disponible.
+//                   GoRouter.of(context).go('/product-details/$productId');
+//                 },
+//                 child: Card(
+//                   child: Padding(
+//                     padding: const EdgeInsets.all(8.0),
+//                     child: Column(
+//                       children: [
+//                         ListTile(
+//                           leading: Image.network(
+//                             product['image'],
+//                             width: 100,
+//                             height: 100,
+//                           ),
+//                           title: Text(product['title']),
+//                         ),
+//                         Row(
+//                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+//                           children: [
+//                             Row(
+//                               children: [
+//                                 const Text('Quantity:'),
+//                                 const SizedBox(width: 10),
+//                                 DropdownButton<int>(
+//                                   value: selectedQuantities[index],
+//                                   items: List.generate(10, (i) => i + 1)
+//                                       .map((e) => DropdownMenuItem<int>(
+//                                             value: e,
+//                                             child: Text('$e'),
+//                                           ))
+//                                       .toList(),
+//                                   onChanged: (value) {
+//                                     setState(() {
+//                                       selectedQuantities[index] = value!;
+//                                     });
+//                                   },
+//                                 ),
+//                               ],
+//                             ),
+//                             ElevatedButton(
+//                               onPressed: () {
+//                                 // ignore: avoid_print
+//                                 print(
+//                                     'Añadir ${product['title']} al carrito con cantidad ${selectedQuantities[index]}');
+//                               },
+//                               child: const Text('Add to cart'),
+//                             ),
+//                           ],
+//                         ),
+//                       ],
+//                     ),
+//                   ),
+//                 ),
+//               );
+//             },
+//           );
+//   }
+// }
 
 class CategoriesPage extends StatefulWidget {
   const CategoriesPage({super.key});
