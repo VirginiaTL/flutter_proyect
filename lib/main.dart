@@ -1,26 +1,49 @@
+// ignore_for_file: library_private_types_in_public_api
+
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 import 'dart:convert';
+
+import 'package:proyecto_flutter/screens/product_detail_page.dart';
 
 void main() {
   runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  MyApp({super.key});
+
+  final GoRouter _router = GoRouter(
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) => const MyHomePage(),
+      ),
+      GoRoute(
+        path: '/product-details',
+        builder: (context, state) {
+          final product = state.extra as Map<String, dynamic>? ?? {};
+          return ProductDetailPage(product: product);
+        },
+      ),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'E-Commerce Layout',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: MyHomePage(),
+      routerDelegate: _router.routerDelegate,
+      routeInformationParser: _router.routeInformationParser,
+      routeInformationProvider: _router.routeInformationProvider,
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key});
+
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
@@ -29,16 +52,16 @@ class _MyHomePageState extends State<MyHomePage> {
   int _currentIndex = 0;
 
   final List<Widget> _pages = [
-    ProductsPage(),
-    CategoriesPage(),
-    CartPage(),
+    const ProductsPage(),
+    const CategoriesPage(),
+    const CartPage(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('E-Commerce App'),
+        title: const Text('E-Commerce App'),
       ),
       body: _pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
@@ -48,12 +71,13 @@ class _MyHomePageState extends State<MyHomePage> {
             _currentIndex = index;
           });
         },
-        items: [
-          BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Productos'),
+        items: const [
           BottomNavigationBarItem(
-              icon: Icon(Icons.category), label: 'Categorías'),
+              icon: Icon(Icons.list), label: 'List of products'),
           BottomNavigationBarItem(
-              icon: Icon(Icons.shopping_cart), label: 'Carrito'),
+              icon: Icon(Icons.category), label: 'Categories'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.shopping_cart), label: 'Cart'),
         ],
       ),
     );
@@ -61,6 +85,8 @@ class _MyHomePageState extends State<MyHomePage> {
 }
 
 class ProductsPage extends StatefulWidget {
+  const ProductsPage({super.key});
+
   @override
   _ProductsPageState createState() => _ProductsPageState();
 }
@@ -71,7 +97,8 @@ class _ProductsPageState extends State<ProductsPage> {
   bool isLoading = true;
   bool isFetchingMore = false;
   int currentPage = 0;
-  final int productsPerPage = 10; // Número de productos por "página"
+  final int productsPerPage = 10;
+  // ignore: prefer_final_fields
   ScrollController _scrollController = ScrollController();
 
   @override
@@ -88,7 +115,7 @@ class _ProductsPageState extends State<ProductsPage> {
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       setState(() {
-        products = data; // Asignar productos obtenidos
+        products = data;
         selectedQuantities = List.generate(products.length, (index) => 1);
         isLoading = false;
       });
@@ -111,8 +138,7 @@ class _ProductsPageState extends State<ProductsPage> {
         isFetchingMore = true;
       });
 
-      // Simulación de carga adicional de datos
-      Future.delayed(Duration(seconds: 2), () {
+      Future.delayed(const Duration(seconds: 2), () {
         setState(() {
           currentPage++;
           isFetchingMore = false;
@@ -124,10 +150,10 @@ class _ProductsPageState extends State<ProductsPage> {
   @override
   Widget build(BuildContext context) {
     return isLoading
-        ? Center(child: CircularProgressIndicator())
+        ? const Center(child: CircularProgressIndicator())
         : ListView.builder(
             controller: _scrollController,
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             itemCount:
                 (currentPage + 1) * productsPerPage + (isFetchingMore ? 1 : 0),
             itemBuilder: (context, index) {
@@ -135,56 +161,62 @@ class _ProductsPageState extends State<ProductsPage> {
                 return null;
               }
               if (index >= (currentPage + 1) * productsPerPage) {
-                return Center(child: CircularProgressIndicator());
+                return const Center(child: CircularProgressIndicator());
               }
 
               final product = products[index];
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Column(
-                    children: [
-                      ListTile(
-                        leading: Image.network(
-                          product['image'],
-                          width: 100,
-                          height: 100,
+              return GestureDetector(
+                onTap: () {
+                  GoRouter.of(context).go('/product-details', extra: product);
+                },
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Column(
+                      children: [
+                        ListTile(
+                          leading: Image.network(
+                            product['image'],
+                            width: 100,
+                            height: 100,
+                          ),
+                          title: Text(product['title']),
                         ),
-                        title: Text(product['title']),
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Text('Cantidad:'),
-                              SizedBox(width: 10),
-                              DropdownButton<int>(
-                                value: selectedQuantities[index],
-                                items: List.generate(10, (i) => i + 1)
-                                    .map((e) => DropdownMenuItem<int>(
-                                          value: e,
-                                          child: Text('$e'),
-                                        ))
-                                    .toList(),
-                                onChanged: (value) {
-                                  setState(() {
-                                    selectedQuantities[index] = value!;
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
-                          ElevatedButton(
-                            onPressed: () {
-                              print(
-                                  'Añadir ${product['title']} al carrito con cantidad ${selectedQuantities[index]}');
-                            },
-                            child: Text('Añadir al carrito'),
-                          ),
-                        ],
-                      ),
-                    ],
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                const Text('Quantity:'),
+                                const SizedBox(width: 10),
+                                DropdownButton<int>(
+                                  value: selectedQuantities[index],
+                                  items: List.generate(10, (i) => i + 1)
+                                      .map((e) => DropdownMenuItem<int>(
+                                            value: e,
+                                            child: Text('$e'),
+                                          ))
+                                      .toList(),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      selectedQuantities[index] = value!;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                // ignore: avoid_print
+                                print(
+                                    'Añadir ${product['title']} al carrito con cantidad ${selectedQuantities[index]}');
+                              },
+                              child: const Text('Add to cart'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -200,6 +232,8 @@ class _ProductsPageState extends State<ProductsPage> {
 }
 
 class CategoriesPage extends StatefulWidget {
+  const CategoriesPage({super.key});
+
   @override
   _CategoriesPageState createState() => _CategoriesPageState();
 }
@@ -223,8 +257,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
-          categories = List<String>.from(
-              data); // Convertir la respuesta a una lista de Strings
+          categories = List<String>.from(data);
           isLoading = false;
           hasError = false;
         });
@@ -239,14 +272,23 @@ class _CategoriesPageState extends State<CategoriesPage> {
     }
   }
 
+  void _onCategoryTap(String category) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CategoryProductsPage(category: category),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (hasError) {
-      return Center(child: Text('Error al cargar categorías'));
+      return const Center(child: Text('Error al cargar categorías'));
     }
 
     String capitalize(String text) {
@@ -255,17 +297,20 @@ class _CategoriesPageState extends State<CategoriesPage> {
     }
 
     return GridView.builder(
-      padding: EdgeInsets.all(16),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
       itemCount: categories.length,
       itemBuilder: (context, index) {
-        return Card(
-          child: Center(
-            child: Text(capitalize(categories[index])),
+        return GestureDetector(
+          onTap: () => _onCategoryTap(categories[index]),
+          child: Card(
+            child: Center(
+              child: Text(capitalize(categories[index])),
+            ),
           ),
         );
       },
@@ -273,12 +318,85 @@ class _CategoriesPageState extends State<CategoriesPage> {
   }
 }
 
-class CartPage extends StatelessWidget {
+class CategoryProductsPage extends StatefulWidget {
+  final String category;
+
+  const CategoryProductsPage({super.key, required this.category});
+
+  @override
+  _CategoryProductsPageState createState() => _CategoryProductsPageState();
+}
+
+class _CategoryProductsPageState extends State<CategoryProductsPage> {
+  List products = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchProductsByCategory();
+  }
+
+  Future<void> fetchProductsByCategory() async {
+    final response = await http.get(Uri.parse(
+        'https://fakestoreapi.com/products/category/${widget.category}'));
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      setState(() {
+        products = data;
+        isLoading = false;
+      });
+    } else {
+      throw Exception('Error al cargar productos de la categoría');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.category.toUpperCase()),
+      ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: products.length,
+              itemBuilder: (context, index) {
+                final product = products[index];
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Column(
+                      children: [
+                        ListTile(
+                          leading: Image.network(
+                            product['image'],
+                            width: 100,
+                            height: 100,
+                          ),
+                          title: Text(product['title']),
+                        ),
+                        Text('Price: \$${product['price']}'),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+}
+
+class CartPage extends StatelessWidget {
+  const CartPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
       child: Text(
-        'Tu carrito está vacío',
+        'Your cart is empty',
         style: TextStyle(fontSize: 24),
       ),
     );
