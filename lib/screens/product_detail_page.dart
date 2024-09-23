@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class ProductDetailPage extends StatelessWidget {
   final Map<String, dynamic> product;
@@ -25,7 +26,13 @@ class ProductDetailPage extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            Navigator.pop(context);
+            if (GoRouter.of(context).canPop()) {
+              // Si hay una página anterior en la pila, la cierra.
+              context.pop();
+            } else {
+              // Si no hay páginas en la pila, navega a la ruta de inicio.
+              GoRouter.of(context).go('/');
+            }
           },
         ),
       ),

@@ -11,6 +11,19 @@ void main() {
   runApp(MyApp());
 }
 
+Future<Map<String, dynamic>> fetchProductDetails(String productId) async {
+  final response =
+      await http.get(Uri.parse('https://fakestoreapi.com/products/$productId'));
+
+  if (response.statusCode == 200) {
+    // Decodifica la respuesta y retorna los detalles del producto.
+    return json.decode(response.body);
+  } else {
+    // Maneja el error en caso de que no se pueda obtener el producto.
+    throw Exception('Error al cargar los detalles del producto');
+  }
+}
+
 class MyApp extends StatelessWidget {
   MyApp({super.key});
 
@@ -24,7 +37,46 @@ class MyApp extends StatelessWidget {
         path: '/product-details',
         builder: (context, state) {
           final product = state.extra as Map<String, dynamic>? ?? {};
+          // if (product == null || product.isEmpty) {
+          //   // Si no hay detalles del producto, redirigir a la pantalla principal.
+          //   return const MyHomePage();
+          // }
           return ProductDetailPage(product: product);
+        },
+      ),
+      GoRoute(
+        path: '/product-details/:id',
+        builder: (context, state) {
+          final productId =
+              state.params['id']; // Obtén el productId desde la URL.
+
+          return FutureBuilder<Map<String, dynamic>>(
+            future: fetchProductDetails(
+                productId!), // Llama a la función que obtiene los detalles del producto.
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                    child:
+                        CircularProgressIndicator()); // Muestra un indicador de carga mientras se obtienen los datos.
+              } else if (snapshot.hasError) {
+                return const Center(
+                    child: Text(
+                        'Error al cargar los detalles del producto.')); // Maneja el error si la carga falla.
+              } else if (!snapshot.hasData ||
+                  snapshot.data == null ||
+                  snapshot.data!.isEmpty) {
+                return const Center(
+                    child: Text(
+                        'No se encontraron detalles del producto.')); // Si no hay datos.
+              } else {
+                final product =
+                    snapshot.data!; // Detalles del producto obtenidos.
+                return ProductDetailPage(
+                    product:
+                        product); // Muestra la página de detalles del producto.
+              }
+            },
+          );
         },
       ),
     ],
@@ -167,7 +219,9 @@ class _ProductsPageState extends State<ProductsPage> {
               final product = products[index];
               return GestureDetector(
                 onTap: () {
-                  GoRouter.of(context).go('/product-details', extra: product);
+                  final productId = product['id']
+                      .toString(); // Asegúrate de que el ID esté disponible.
+                  GoRouter.of(context).go('/product-details/$productId');
                 },
                 child: Card(
                   child: Padding(
@@ -222,12 +276,6 @@ class _ProductsPageState extends State<ProductsPage> {
               );
             },
           );
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
   }
 }
 
