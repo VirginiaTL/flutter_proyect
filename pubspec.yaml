@@ -40,14 +40,18 @@ dependencies:
   injectable: ^2.1.0 # Para la inyección de dependencias
   get_it: ^7.6.0 # Para gestionar los servicios inyectados
   http: ^1.2.2
+  hive: ^2.0.5
+  hive_flutter: ^1.1.0
+  shared_preferences: ^2.0.11
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.6
 
 dev_dependencies:
+  hive_generator: ^2.0.1
   build_runner: ^2.4.5
-  mobx_codegen: ^2.6.1
+  mobx_codegen: ^2.3.0
   injectable_generator: ^2.1.0
   flutter_test:
     sdk: flutter
