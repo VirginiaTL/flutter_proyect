@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 part 'product_store.g.dart';
 
 class ProductStore = _ProductStore with _$ProductStore;
 
 abstract class _ProductStore with Store {
+
   @observable
   List products = [];
 
@@ -64,6 +67,36 @@ abstract class _ProductStore with Store {
         currentPage++;
         isFetchingMore = false;
       });
+    }
+  }
+
+  @action
+  Future<void> addToCart(int productId, int quantity) async {
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+    final userId = preferences.getString("userId");
+
+    if (userId == null) {
+      throw Exception("Usuario no autenticado");
+    }
+
+    final cartData = {
+      "userId": userId,
+      "date": DateTime.now().toIso8601String(),
+      "products": [
+        {"productId": productId, "quantity": quantity}
+      ]
+    };
+
+    final response = await http.post(
+      Uri.parse('https://fakestoreapi.com/carts'),
+      headers: {"Content-Type": "application/json"},
+      body: json.encode(cartData),
+    );
+
+    if (response.statusCode == 200) {
+      print("Producto añadido al carrito");
+    } else {
+      throw Exception('Error al añadir al carrito');
     }
   }
 }

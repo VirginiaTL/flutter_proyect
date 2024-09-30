@@ -158,8 +158,130 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
+// class ProductsPage extends StatelessWidget {
+//   const ProductsPage({Key? key}) : super(key: key);
+
+//   @override
+//   Widget build(BuildContext context) {
+//     final productStore = Provider.of<ProductStore>(context);
+
+//     return Scaffold(
+//       body: Observer(
+//         builder: (_) {
+//           if (productStore.isLoading) {
+//             return const Center(child: CircularProgressIndicator());
+//           }
+
+//           return ListView.builder(
+//             controller: productStore.scrollController,
+//             padding: const EdgeInsets.all(16),
+//             itemCount:
+//                 (productStore.currentPage + 1) * productStore.productsPerPage +
+//                     (productStore.isFetchingMore ? 1 : 0),
+//             itemBuilder: (context, index) {
+//               if (index >= productStore.products.length) {
+//                 return const Center(child: CircularProgressIndicator());
+//               }
+//               if (index >=
+//                   (productStore.currentPage + 1) *
+//                       productStore.productsPerPage) {
+//                 return const Center(child: CircularProgressIndicator());
+//               }
+
+//               final product = productStore.products[index];
+//               return GestureDetector(
+//                 onTap: () {
+//                   final productId = product['id'].toString();
+//                   GoRouter.of(context).go('/product-details/$productId');
+//                 },
+//                 child: Card(
+//                   child: Padding(
+//                     padding: const EdgeInsets.all(8.0),
+//                     child: Column(
+//                       children: [
+//                         ListTile(
+//                           leading: Image.network(
+//                             product['image'],
+//                             width: 100,
+//                             height: 100,
+//                           ),
+//                           title: Text(product['title']),
+//                         ),
+//                         Row(
+//                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+//                           children: [
+//                             Row(
+//                               children: [
+//                                 const Text('Quantity:'),
+//                                 const SizedBox(width: 10),
+//                                 DropdownButton<int>(
+//                                   value: productStore.selectedQuantities[index],
+//                                   items: List.generate(10, (i) => i + 1)
+//                                       .map((e) => DropdownMenuItem<int>(
+//                                             value: e,
+//                                             child: Text('$e'),
+//                                           ))
+//                                       .toList(),
+//                                   onChanged: (value) {
+//                                     productStore.updateQuantity(index, value!);
+//                                   },
+//                                 ),
+//                               ],
+//                             ),
+//                             ElevatedButton(
+//                               onPressed: () {
+//                                 print(
+//                                     'Añadir ${product['title']} al carrito con cantidad ${productStore.selectedQuantities[index]}');
+//                               },
+//                               child: const Text('Add to cart'),
+//                             ),
+//                           ],
+//                         ),
+//                       ],
+//                     ),
+//                   ),
+//                 ),
+//               );
+//             },
+//           );
+//         },
+//       ),
+//     );
+//   }
+// }
+
 class ProductsPage extends StatelessWidget {
   const ProductsPage({Key? key}) : super(key: key);
+
+  Future<void> addToCart(int productId, int quantity) async {
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+    final userId = preferences
+        .getString("userId"); // Obtener el userId del usuario autenticado
+
+    if (userId == null) {
+      throw Exception("Usuario no autenticado");
+    }
+
+    final cartData = {
+      "userId": userId,
+      "date": DateTime.now().toIso8601String(),
+      "products": [
+        {"productId": productId, "quantity": quantity}
+      ]
+    };
+
+    final response = await http.post(
+      Uri.parse('https://fakestoreapi.com/carts'),
+      headers: {"Content-Type": "application/json"},
+      body: json.encode(cartData),
+    );
+
+    if (response.statusCode == 200) {
+      print("Producto añadido al carrito");
+    } else {
+      throw Exception('Error al añadir al carrito');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -173,21 +295,9 @@ class ProductsPage extends StatelessWidget {
           }
 
           return ListView.builder(
-            controller: productStore.scrollController,
             padding: const EdgeInsets.all(16),
-            itemCount:
-                (productStore.currentPage + 1) * productStore.productsPerPage +
-                    (productStore.isFetchingMore ? 1 : 0),
+            itemCount: productStore.products.length,
             itemBuilder: (context, index) {
-              if (index >= productStore.products.length) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (index >=
-                  (productStore.currentPage + 1) *
-                      productStore.productsPerPage) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
               final product = productStore.products[index];
               return GestureDetector(
                 onTap: () {
@@ -229,9 +339,26 @@ class ProductsPage extends StatelessWidget {
                               ],
                             ),
                             ElevatedButton(
-                              onPressed: () {
-                                print(
-                                    'Añadir ${product['title']} al carrito con cantidad ${productStore.selectedQuantities[index]}');
+                              onPressed: () async {
+                                final productId = product['id'];
+                                final quantity =
+                                    productStore.selectedQuantities[index];
+
+                                try {
+                                  await productStore.addToCart(
+                                      productId, quantity);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content: Text(
+                                            'Producto añadido al carrito')),
+                                  );
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content:
+                                            Text('Error al añadir al carrito')),
+                                  );
+                                }
                               },
                               child: const Text('Add to cart'),
                             ),
