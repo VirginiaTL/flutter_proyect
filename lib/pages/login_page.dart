@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:hive/hive.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatelessWidget {
   final TextEditingController _usernameController = TextEditingController();
@@ -13,28 +14,29 @@ class LoginPage extends StatelessWidget {
   Future<void> _login(BuildContext context) async {
     final String username = _usernameController.text.trim();
     final String password = _passwordController.text.trim();
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+
+    final responselogin = await http.post(
+        Uri.parse('https://fakestoreapi.com/auth/login'),
+        body: {"username": username, "password": password});
 
     final response =
         await http.get(Uri.parse('https://fakestoreapi.com/users'));
 
-    if (response.statusCode == 200) {
-      final List users = json.decode(response.body);
-
-      print('Usuarios: $response');
-
+    if (responselogin.statusCode == 200) {
+      var jsonlogin = jsonDecode(responselogin.body);
+      preferences.setString("token", jsonlogin['token']);
+      print(preferences.getString("token"));
+      GoRouter.of(context).go('/');
+      print('Login successful');
+      final users = jsonDecode(response.body) as List;
       final user = users.firstWhere(
-        (user) => user['username'] == username && user['password'] == password,
-        orElse: () => null,
+        (u) => u['username'] == username,
+        orElse: () => null, // En caso de que no se encuentre el usuario
       );
-
-      if (user != null) {
-        isAuthenticated = true; // Actualizar la variable global
-        print('Login successful');
-        // Redirigir a la página principal
-        GoRouter.of(context).go('/');
-      } else {
-        print('Invalid username or password');
-      }
+      final userId = user['id'];
+      preferences.setString("userId", userId.toString());
+      print(preferences.getString("userId"));
     } else {
       print('Error fetching users');
     }

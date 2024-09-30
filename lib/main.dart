@@ -10,6 +10,7 @@ import 'dart:convert';
 
 import 'package:proyecto_flutter/screens/product_detail_page.dart';
 import 'package:proyecto_flutter/stores/product_store.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(
@@ -410,12 +411,92 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
 class CartPage extends StatelessWidget {
   const CartPage({super.key});
 
+  Future<List<dynamic>> fetchCartProducts() async {
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+    final userId = preferences.getString("userId");
+
+    // Solicitud para obtener los productos en el carrito
+    final response = await http
+        .get(Uri.parse('https://fakestoreapi.com/carts/user/${userId}'));
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+
+      // Verificamos si hay carritos para el usuario
+      if (data.isNotEmpty) {
+        final cartProducts = data[0]['products']; // El carrito más reciente
+        List<dynamic> detailedProducts = [];
+
+        // Para cada producto en el carrito, obtenemos sus detalles
+        for (var product in cartProducts) {
+          final productId = product['productId'];
+          final productDetailsResponse = await http
+              .get(Uri.parse('https://fakestoreapi.com/products/${productId}'));
+
+          if (productDetailsResponse.statusCode == 200) {
+            final productDetails = json.decode(productDetailsResponse.body);
+
+            // Combina la cantidad del carrito con los detalles del producto
+            productDetails['quantity'] = product['quantity'];
+            detailedProducts.add(productDetails);
+          } else {
+            throw Exception('Error al obtener detalles del producto');
+          }
+        }
+
+        return detailedProducts;
+      } else {
+        return []; // Si no hay productos
+      }
+    } else {
+      throw Exception('Error al cargar productos del carrito');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Your cart is empty',
-        style: TextStyle(fontSize: 24),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Cart'),
+      ),
+      body: FutureBuilder<List<dynamic>>(
+        future: fetchCartProducts(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(
+              child: Text(
+                'Your cart is empty',
+                style: TextStyle(fontSize: 24),
+              ),
+            );
+          } else {
+            // Muestra la lista de productos con detalles
+            final cartProducts = snapshot.data!;
+            return ListView.builder(
+              itemCount: cartProducts.length,
+              itemBuilder: (context, index) {
+                final product = cartProducts[index];
+                return ListTile(
+                  leading:
+                      Image.network(product['image']), // Imagen del producto
+                  title: Text(product['title']), // Nombre del producto
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Price: \$${product['price']}'),
+                      Text(
+                          'Quantity: ${product['quantity']}'), // Cantidad del carrito
+                    ],
+                  ),
+                );
+              },
+            );
+          }
+        },
       ),
     );
   }
