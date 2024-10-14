@@ -6,8 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
-import 'package:proyecto_flutter/boxes.dart';
-// import 'package:proyecto_flutter/models/cart_model.dart';
 import 'package:proyecto_flutter/pages/login_page.dart';
 import 'dart:convert';
 
