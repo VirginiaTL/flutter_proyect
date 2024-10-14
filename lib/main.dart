@@ -3,8 +3,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import 'package:proyecto_flutter/boxes.dart';
+// import 'package:proyecto_flutter/models/cart_model.dart';
 import 'package:proyecto_flutter/pages/login_page.dart';
 import 'dart:convert';
 
@@ -12,7 +15,11 @@ import 'package:proyecto_flutter/screens/product_detail_page.dart';
 import 'package:proyecto_flutter/stores/product_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
+Future<void> main() async {
+  await Hive.initFlutter();
+
+  // Abre la caja donde almacenarás el carrito
+  await Hive.openBox('cartBox');
   runApp(
     Provider(
       create: (_) => ProductStore()..fetchProducts(),
@@ -119,9 +126,13 @@ class _MyHomePageState extends State<MyHomePage> {
     const CartPage(),
   ];
 
-  void _logout(BuildContext context) {
-    // Aquí puedes implementar cualquier lógica de cierre de sesión necesaria
-    // Luego redirigir a la página de login
+  void _logout(BuildContext context) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.remove("userId"); // Eliminar el ID del usuario
+
+    // También puedes eliminar el carrito del Hive si lo deseas
+    await Hive.box('cartBox').clear();
+
     GoRouter.of(context).go('/login');
   }
 
@@ -158,129 +169,40 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-// class ProductsPage extends StatelessWidget {
-//   const ProductsPage({Key? key}) : super(key: key);
-
-//   @override
-//   Widget build(BuildContext context) {
-//     final productStore = Provider.of<ProductStore>(context);
-
-//     return Scaffold(
-//       body: Observer(
-//         builder: (_) {
-//           if (productStore.isLoading) {
-//             return const Center(child: CircularProgressIndicator());
-//           }
-
-//           return ListView.builder(
-//             controller: productStore.scrollController,
-//             padding: const EdgeInsets.all(16),
-//             itemCount:
-//                 (productStore.currentPage + 1) * productStore.productsPerPage +
-//                     (productStore.isFetchingMore ? 1 : 0),
-//             itemBuilder: (context, index) {
-//               if (index >= productStore.products.length) {
-//                 return const Center(child: CircularProgressIndicator());
-//               }
-//               if (index >=
-//                   (productStore.currentPage + 1) *
-//                       productStore.productsPerPage) {
-//                 return const Center(child: CircularProgressIndicator());
-//               }
-
-//               final product = productStore.products[index];
-//               return GestureDetector(
-//                 onTap: () {
-//                   final productId = product['id'].toString();
-//                   GoRouter.of(context).go('/product-details/$productId');
-//                 },
-//                 child: Card(
-//                   child: Padding(
-//                     padding: const EdgeInsets.all(8.0),
-//                     child: Column(
-//                       children: [
-//                         ListTile(
-//                           leading: Image.network(
-//                             product['image'],
-//                             width: 100,
-//                             height: 100,
-//                           ),
-//                           title: Text(product['title']),
-//                         ),
-//                         Row(
-//                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//                           children: [
-//                             Row(
-//                               children: [
-//                                 const Text('Quantity:'),
-//                                 const SizedBox(width: 10),
-//                                 DropdownButton<int>(
-//                                   value: productStore.selectedQuantities[index],
-//                                   items: List.generate(10, (i) => i + 1)
-//                                       .map((e) => DropdownMenuItem<int>(
-//                                             value: e,
-//                                             child: Text('$e'),
-//                                           ))
-//                                       .toList(),
-//                                   onChanged: (value) {
-//                                     productStore.updateQuantity(index, value!);
-//                                   },
-//                                 ),
-//                               ],
-//                             ),
-//                             ElevatedButton(
-//                               onPressed: () {
-//                                 print(
-//                                     'Añadir ${product['title']} al carrito con cantidad ${productStore.selectedQuantities[index]}');
-//                               },
-//                               child: const Text('Add to cart'),
-//                             ),
-//                           ],
-//                         ),
-//                       ],
-//                     ),
-//                   ),
-//                 ),
-//               );
-//             },
-//           );
-//         },
-//       ),
-//     );
-//   }
-// }
-
 class ProductsPage extends StatelessWidget {
-  const ProductsPage({Key? key}) : super(key: key);
-
+  const ProductsPage({super.key});
   Future<void> addToCart(int productId, int quantity) async {
     SharedPreferences preferences = await SharedPreferences.getInstance();
-    final userId = preferences
-        .getString("userId"); // Obtener el userId del usuario autenticado
+    final userId = preferences.getString("userId");
 
     if (userId == null) {
       throw Exception("Usuario no autenticado");
     }
 
-    final cartData = {
-      "userId": userId,
-      "date": DateTime.now().toIso8601String(),
-      "products": [
-        {"productId": productId, "quantity": quantity}
-      ]
-    };
+    // Obtener el carrito existente de Hive
+    final boxCart = await Hive.openBox('cartBox');
+    final cartKey = 'cart_$userId';
+    final existingCart = boxCart.get(cartKey, defaultValue: []);
 
-    final response = await http.post(
-      Uri.parse('https://fakestoreapi.com/carts'),
-      headers: {"Content-Type": "application/json"},
-      body: json.encode(cartData),
-    );
+    // Buscar si el producto ya está en el carrito para actualizar la cantidad
+    var existingProductIndex =
+        existingCart.indexWhere((product) => product['productId'] == productId);
 
-    if (response.statusCode == 200) {
-      print("Producto añadido al carrito");
+    if (existingProductIndex != -1) {
+      // Si el producto ya existe en el carrito, actualiza la cantidad
+      existingCart[existingProductIndex]['quantity'] += quantity;
     } else {
-      throw Exception('Error al añadir al carrito');
+      // Si el producto no está en el carrito, añade uno nuevo
+      final newProduct = {
+        "productId": productId,
+        "quantity": quantity,
+      };
+      existingCart.add(newProduct);
     }
+
+    // Guardar el carrito actualizado de nuevo en Hive
+    await boxCart.put(cartKey, existingCart);
+    await boxCart.close();
   }
 
   @override
@@ -345,16 +267,17 @@ class ProductsPage extends StatelessWidget {
                                     productStore.selectedQuantities[index];
 
                                 try {
-                                  await productStore.addToCart(
-                                      productId, quantity);
+                                  await addToCart(productId, quantity);
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                        content: Text(
-                                            'Producto añadido al carrito')),
+                                      content: Text(
+                                          'Producto añadido al carrito con cantidad: $quantity y productId: $productId'),
+                                    ),
                                   );
+                                  // Opcional: Refrescar la lista de productos en la página de carrito si es necesario.
                                 } catch (e) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
+                                    const SnackBar(
                                         content:
                                             Text('Error al añadir al carrito')),
                                   );
@@ -535,49 +458,53 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
   }
 }
 
-class CartPage extends StatelessWidget {
+class CartPage extends StatefulWidget {
   const CartPage({super.key});
+
+  @override
+  _CartPageState createState() => _CartPageState();
+}
+
+class _CartPageState extends State<CartPage> {
+  late Future<List<dynamic>> futureCartProducts;
+
+  @override
+  void initState() {
+    super.initState();
+    futureCartProducts = fetchCartProducts();
+  }
 
   Future<List<dynamic>> fetchCartProducts() async {
     SharedPreferences preferences = await SharedPreferences.getInstance();
     final userId = preferences.getString("userId");
 
-    // Solicitud para obtener los productos en el carrito
-    final response = await http
-        .get(Uri.parse('https://fakestoreapi.com/carts/user/${userId}'));
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-
-      // Verificamos si hay carritos para el usuario
-      if (data.isNotEmpty) {
-        final cartProducts = data[0]['products']; // El carrito más reciente
-        List<dynamic> detailedProducts = [];
-
-        // Para cada producto en el carrito, obtenemos sus detalles
-        for (var product in cartProducts) {
-          final productId = product['productId'];
-          final productDetailsResponse = await http
-              .get(Uri.parse('https://fakestoreapi.com/products/${productId}'));
-
-          if (productDetailsResponse.statusCode == 200) {
-            final productDetails = json.decode(productDetailsResponse.body);
-
-            // Combina la cantidad del carrito con los detalles del producto
-            productDetails['quantity'] = product['quantity'];
-            detailedProducts.add(productDetails);
-          } else {
-            throw Exception('Error al obtener detalles del producto');
-          }
-        }
-
-        return detailedProducts;
-      } else {
-        return []; // Si no hay productos
-      }
-    } else {
-      throw Exception('Error al cargar productos del carrito');
+    if (userId == null) {
+      return [];
     }
+
+    final boxCart = await Hive.openBox('cartBox');
+    final cartKey = 'cart_$userId';
+    final cartProducts = boxCart.get(cartKey, defaultValue: []);
+
+    List<dynamic> detailedProducts = [];
+
+    // Para cada producto en el carrito, obtenemos sus detalles
+    for (var product in cartProducts) {
+      final productId = product['productId'];
+      final productDetailsResponse = await http
+          .get(Uri.parse('https://fakestoreapi.com/products/$productId'));
+
+      if (productDetailsResponse.statusCode == 200) {
+        final productDetails = json.decode(productDetailsResponse.body);
+        productDetails['quantity'] = product['quantity'];
+        detailedProducts.add(productDetails);
+      } else {
+        throw Exception('Error al obtener detalles del producto');
+      }
+    }
+
+    await boxCart.close();
+    return detailedProducts;
   }
 
   @override
@@ -587,7 +514,7 @@ class CartPage extends StatelessWidget {
         title: const Text('Cart'),
       ),
       body: FutureBuilder<List<dynamic>>(
-        future: fetchCartProducts(),
+        future: futureCartProducts,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

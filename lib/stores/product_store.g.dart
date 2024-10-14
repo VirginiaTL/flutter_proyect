@@ -81,6 +81,15 @@ mixin _$ProductStore on _ProductStore, Store {
     return _$fetchProductsAsyncAction.run(() => super.fetchProducts());
   }
 
+  late final _$addToCartAsyncAction =
+      AsyncAction('_ProductStore.addToCart', context: context);
+
+  @override
+  Future<void> addToCart(int productId, int quantity) {
+    return _$addToCartAsyncAction
+        .run(() => super.addToCart(productId, quantity));
+  }
+
   late final _$_ProductStoreActionController =
       ActionController(name: '_ProductStore', context: context);
 
