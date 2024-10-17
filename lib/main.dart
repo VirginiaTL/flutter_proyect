@@ -472,6 +472,16 @@ class _CartPageState extends State<CartPage> {
     futureCartProducts = fetchCartProducts();
   }
 
+  double calculateTotal(List<dynamic> cartProducts) {
+    double total = 0.0;
+    for (var product in cartProducts) {
+      final price = product['price'];
+      final quantity = product['quantity'];
+      total += price * quantity;
+    }
+    return total;
+  }
+
   Future<List<dynamic>> fetchCartProducts() async {
     SharedPreferences preferences = await SharedPreferences.getInstance();
     final userId = preferences.getString("userId");
@@ -528,24 +538,41 @@ class _CartPageState extends State<CartPage> {
           } else {
             // Muestra la lista de productos con detalles
             final cartProducts = snapshot.data!;
-            return ListView.builder(
-              itemCount: cartProducts.length,
-              itemBuilder: (context, index) {
-                final product = cartProducts[index];
-                return ListTile(
-                  leading:
-                      Image.network(product['image']), // Imagen del producto
-                  title: Text(product['title']), // Nombre del producto
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Price: \$${product['price']}'),
-                      Text(
-                          'Quantity: ${product['quantity']}'), // Cantidad del carrito
-                    ],
+            final total = calculateTotal(cartProducts);
+            return Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: cartProducts.length,
+                    itemBuilder: (context, index) {
+                      final product = cartProducts[index];
+                      return ListTile(
+                        leading: Image.network(
+                            product['image']), // Imagen del producto
+                        title: Text(product['title']), // Nombre del producto
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Price: \$${product['price']}'),
+                            Text(
+                                'Quantity: ${product['quantity']}'), // Cantidad del carrito
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    'Total: \$${total.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             );
           }
         },
